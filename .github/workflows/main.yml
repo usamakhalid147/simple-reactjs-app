@@ -1,0 +1,50 @@
+name: Remote SSH commands
+
+on:
+  push:
+    branches:
+      - master  
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest 
+
+    steps:
+    - name: Checkout repository content
+      uses: actions/checkout@v2  
+
+    - name: Install SSH key
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.MY_SECRET_KEY }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "${SSH_PRIVATE_KEY}" | tr -d '\r' > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+
+    - name: Execute Node.js commands over SSH
+      run: |
+        ssh -o StrictHostKeyChecking=no ec2-user@52.90.254.217 << EOF
+        # Navigate to the project directory
+        cd /home/ec2-user/simple-reactjs-app
+        
+        # Pull the latest changes from Git
+        git pull
+
+        # Install dependencies
+        npm install
+
+        # Build the project (optional, if applicable)
+        npm run build
+
+        # Stop any running instance of the application (if applicable)
+        pkill -f "node"
+
+        # Start the application
+        nohup npm start > app.log 2>&1 &
+
+        # Verify the application is running
+        ps aux | grep node
+
+        sudo systemctl reload nginx
+
+        EOF
